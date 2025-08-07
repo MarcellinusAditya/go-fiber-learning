@@ -83,7 +83,38 @@ func main() {
 		return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Activity created successfully", "id": activity.ID})
 	})
 
+	// Update activity status
+	app.Put("/activities/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var activity Activity
+		if err := c.BodyParser(&activity); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error()})
+		}
+		err := validator.New().Struct(&activity)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Validation failed", "errors": err.Error()})
+		}	
+		sqlStatement := `UPDATE activities SET title=$1, category=$2, description=$3, activity_date=$4, status=$5
+		 WHERE id = $6 RETURNING id`
 
+		err = db.QueryRow(sqlStatement, activity.Title, activity.Category, activity.Description, activity.ActivityDate, activity.Status, id).Scan(&activity.ID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to update activity", "error": err.Error()})
+		}
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Activity updated successfully", "id": activity.ID})
 
+	})
+
+	// Delete activity
+	app.Delete("/activities/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		sqlStatement := `DELETE FROM activities WHERE id = $1`
+		_, err := db.Exec(sqlStatement, id)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Failed to delete activity", "error": err.Error()})
+		}
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Activity deleted successfully"})
+
+	})
 	app.Listen(":8001")
 }
